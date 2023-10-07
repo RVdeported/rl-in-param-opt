@@ -1,6 +1,6 @@
 import psycopg as pg
 import time
-from schemas import KLINES, DEPTH_DIFF
+from schemas import KLINES, DEPTH_DIFF, AGGR_TRADE, ORDER_BOOK
 import json
 
 # Connect to an existing QuestDB instance
@@ -19,8 +19,11 @@ class FinQuestDB:
         if item[0]["e"] == "kline":
             self.insert_klines(item)
         if item[0]["e"] == "depthUpdate":
-            print("!!!! RECORDING INTERNAL!!!")
             self.insert_depth_diff(item)
+        if item[0]["e"] == "aggTrade":
+            self.insert_aggr_trade(item)
+        if item[0]["e"] == "orderBook":
+            self.insert_order_book(item)
 
     def insert_depth_diff(self, item):
         with pg.connect(self.conn_str, autocommit=True) as connection:
@@ -45,6 +48,33 @@ class FinQuestDB:
                         VALUES {('(%s, %s, %s, %s, %s, %s, %s),' * len(item))[:-1]};
                     """, args)
                 
+    def insert_aggr_trade(self, item):
+        with pg.connect(self.conn_str, autocommit=True) as connection:
+            with connection.cursor() as cur:
+                timestamp = time.time_ns() // 1000
+                args = []
+                for n in item:
+                    args.extend(
+                        [                        
+                        timestamp,
+                        n["E"]*1000,
+                        n["s"],
+                        n["a"],
+                        n["p"],
+                        n["q"],
+                        n["f"],
+                        n["l"],
+                        n["T"]*1000,
+                        "True" if n["m"] else "False",
+                        "True" if n["M"] else "False"
+                        ]
+                    )
+                print(args)
+                cur.execute(f"""
+                    INSERT INTO {self.compose_name("AGGR_T", item[0]["s"])}
+                        VALUES {('(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s),' * len(item))[:-1]};
+                    """, args)
+
     def insert_klines(self, item):
 
         with pg.connect(self.conn_str, autocommit=True) as connection:
@@ -53,7 +83,8 @@ class FinQuestDB:
                 args = []
                 for n in item:
                     args.extend(
-                        [                        timestamp,
+                        [                        
+                        timestamp,
                         n["E"]*1000,
                         n["s"],
                         n["k"]["t"]*1000,
@@ -75,21 +106,41 @@ class FinQuestDB:
                         VALUES {('(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s),' * len(item))[:-1]};
                     """, args)
 
+    def insert_order_book(self, item):
+
+        with pg.connect(self.conn_str, autocommit=True) as connection:
+            with connection.cursor() as cur:
+                timestamp = time.time_ns() // 1000
+                args = []
+                for n in item:
+                    args.extend(
+                        [                        
+                        timestamp,
+                        n["lastUpdateId"],
+                        ]
+                    )
+                    for i in range(15):
+                        args.extend(n["bids"][i])
+                    for i in range(15):
+                        args.extend(n["asks"][i])
+
+                cur.execute(f"""
+                    INSERT INTO {self.compose_name("ORDER_B", item[0]["s"])}
+                        VALUES {('(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s),' * len(item))[:-1]};
+                    """, args)
+
     def compose_name(self, type="KLINES", symbol="BTCUSDT"):
         return symbol + "_" + type + "_BINANCE"
 
     def create_tables(self):
-        with pg.connect(self.conn_str, autocommit=True) as connection:
-            
-            
+        with pg.connect(self.conn_str, autocommit=True) as connection:            
             with connection.cursor() as cur:
-
-                # klines tables
                 for symbol in self.symbols:
                     cur.execute(KLINES.replace("<|name|>"    , self.compose_name("KLINES",  symbol)))
                     cur.execute(DEPTH_DIFF.replace("<|name|>", self.compose_name("DEPTH_D", symbol)))
+                    cur.execute(AGGR_TRADE.replace("<|name|>", self.compose_name("AGGR_T",  symbol)))
+                    cur.execute(ORDER_BOOK.replace("<|name|>", self.compose_name("ORDER_B", symbol)))
                 
-                # depth table
                 
 
 

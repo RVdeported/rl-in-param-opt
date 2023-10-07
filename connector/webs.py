@@ -1,6 +1,4 @@
 import websocket
-import _thread
-import time
 import rel
 import json
 import multiprocessing
@@ -87,6 +85,8 @@ class BinanceWSS:
         rel.dispatch()
 
 if __name__ == "__main__":
-    wss = BinanceWSS(["btcusdt@kline_1s","btcusdt@depth@100ms"], batch_size=10)
+    wss = BinanceWSS(["btcusdt@kline_1s", "ethusdt@kline_1s", "ethusdt@aggTrade", "btcusdt@aggTrade"], batch_size=10)
     wss.start()
+
+    print("BUSTED")
 
