@@ -24,7 +24,7 @@ if __name__ == "__main__":
     )
     
     t1 = multiprocessing.Process(target=asyncio.run, args=(start(wss),))
-    t2 = multiprocessing.Process(target=asyncio.run, args=(start(wss),))
+    t2 = multiprocessing.Process(target=asyncio.run, args=(start(https),))
     
     t1.start()
     t2.start()
